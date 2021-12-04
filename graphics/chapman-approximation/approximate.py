@@ -2,7 +2,7 @@ from math import pi, sqrt, exp
 import itertools
 import plotly.express as px
 import numpy as np
-
+import multiprocessing
 
 def clamp(lo, hi, x):
     return max(lo, min(hi, x))
@@ -41,8 +41,9 @@ def data(n,lx,lz,lr):
     ]
     return np.array(multiprocessing.Pool().starmap(row, inputs))
 
-data = data(10000,50,2000,20)
+data = data(10000,50,1000,20)
 np.save('F.npy', data)
+data = np.load('F.npy')
 x = data[:,0]
 z = data[:,1]
 r = data[:,2]
@@ -62,7 +63,7 @@ def c(*nparrays):
 px.scatter_3d(x=x, y=z, z=np.sqrt(chapman), animation_frame=r, range_x=[10,520], range_y=[0,520], range_z=[0,100], labels={'x':'x','y':'z','z':'1/Ch'}).show()
 px.scatter_3d(x=x, y=z, z=chapman, animation_frame=r, range_x=[10,520], range_y=[0,520], range_z=[0,10000], labels={'x':'x','y':'z','z':'Ch'}).show()
 px.scatter_3d(x=x, y=z, z=chapman, animation_frame=r, range_x=[10,520], range_y=[0,520], range_z=[0,100], labels={'x':'x','y':'z','z':'Ch'}).show()
-px.scatter_3d(x=c(x,x)[0::2,], y=c(z,z)[0::2,], z=c(chapman,np.sqrt(z))[0::2,], color=c(0*x,0*x+1)[0::2,], animation_frame=c(r,r)[0::2,], range_x=[10,520], range_y=[0,520], range_z=[0,100], labels={'x':'x','y':'z','z':'Ch'}).show()
+px.scatter_3d(x=c(x,x)[0::2,], y=c(z,z)[0::2,], z=c(chapman,(1/(2*(z-x))+1)*sqrt(3.1415/2)*np.sqrt(z)+0.65*x)[0::2,], color=c(0*x,0*x+1)[0::2,], animation_frame=c(r,r)[0::2,], range_x=[10,120], range_y=[0,520], range_z=[0,100], labels={'x':'x','y':'z','z':'Ch'}).show()
 
 SMALL = 1e-20
 BIG = 1e20
@@ -110,7 +111,7 @@ def approx_air_column_density_ratio_through_atmosphere(a, b, z2, r0):
     return max( sign(b)*(s0-sb) - sign(a)*(s0-sa), 0.0 )
 
 
-def get_rgb_fraction_of_distant_light_scattered_by_atmosphere(v0, v1, y2, zv2, l0, VL, r, beta_sum):
+def Hcalculation(v0, v1, y2, zv2, l0, VL, r, beta_sum):
     # For an excellent introduction to what we're try to do here, see Alan Zucconi: 
     #   https://www.alanzucconi.com/2017/10/10/atmospheric-scattering-3/
     # We will be using most of the same terminology and variable names.
@@ -145,10 +146,8 @@ def get_rgb_fraction_of_distant_light_scattered_by_atmosphere(v0, v1, y2, zv2, l
     # number of iterations within the raymarch
     STEP_COUNT = 30
     dv = (v1 - v0) / STEP_COUNT
-    vi = v0
-    li = l0
-    dl = VL*dv
-    li = VL*(vi-v0) + l0
+    vi = 0
+    li = 0
     F = 0 # total intensity for each color channel, found as the sum of light intensities for each path from the light source to the camera
     for i in range(STEP_COUNT):
         vi = dv*i + v0
@@ -159,6 +158,13 @@ def get_rgb_fraction_of_distant_light_scattered_by_atmosphere(v0, v1, y2, zv2, l
         F += exp(r-sqrt(vi*vi+y2+zv2) - beta_sum*sigma) * dv
     return F
 
+def Gcalculation(v0, vi, y2, zv2, l0, VL, r, beta_sum):
+    li = VL*(vi-v0) + l0
+    zl2 = max(0, vi*vi + zv2 - li*li)
+    # "sigma": columnar density encountered along the entire path, relative to surface density, effectively the distance along the surface needed to obtain a similar column density
+    sigma = approx_air_column_density_ratio_through_atmosphere(v0, vi, y2+zv2, r ) + approx_air_column_density_ratio_through_atmosphere(li, 3*r, y2+zl2, r )
+    return exp(r-sqrt(vi*vi+y2+zv2) - beta_sum*sigma)
+
 
 appreciable_rgb_fraction = 1e-30
 
@@ -167,19 +173,23 @@ inputs  = [
     for r in  range(400, 600, 50)
     for y2 in [y*y for y in range(0, r, 50)]
     for zv2 in [zv*zv for zv in range(int(sqrt(r*r-y2)),r, 50)]
-    for l0 in range(int(sqrt(r*r-y2)), r, 50)
-    for v0 in range(int(sqrt(max(0,r*r-y2-zv2))), r, 50)
-    for v1 in range(v0, r, 50)
+    for V0length in range(r, r+10, 1)
+    for l0 in [V0length*i/(20-1) for i in range(20)]
+    for v0 in [V0length*i/(20-1) for i in range(20)]
     for VL in [i/(20-1) for i in range(0,20,1)]
+    for v1 in range(-r, v0, 50)
     for beta_sum in [i/1e6 * 8.5e3 for i in range(0,100, 10)]
 ]
 len(inputs)
 
 
-def Hrow(v0, v1, y2, zv2, l0, VL, r, beta_sum) :
-    return (v0, v1, y2, zv2, l0, VL, r, beta_sum, get_rgb_fraction_of_distant_light_scattered_by_atmosphere(v0, v1, y2, zv2, l0, VL, r, beta_sum)) 
+def Hrow(v0, v1, y2, zv2, l0, VL, r, beta_sum):
+    return (v0, v1, y2, zv2, l0, VL, r, beta_sum, Hcalculation(v0, v1, y2, zv2, l0, VL, r, beta_sum)) 
 
 Htable = np.array(multiprocessing.Pool().starmap(Hrow, inputs))
+np.save('H.npy', Htable)
+
+Gcolumn = np.array(multiprocessing.Pool().starmap(Gcalculation, inputs))
 
 def table_function(table):
     def _table_function(*args):
@@ -195,9 +205,9 @@ def table_function(table):
 
 H=table_function(Htable)
 
+def Hview(r, y2, zv2, V0length, LV0hat, VV0hat, VL, v1):
+    '''maps parameter space from a parameterization that can be better understood by users'''
+    return H(V0length*VV0hat if V0length and VV0hat else None, v1, 
+        y2, zv2, V0length*LV0hat if V0length and LV0hat else None, VL, r)
 
-(v0, v1, y2, zv2, l0, VL, r, beta_sum) 
-np.save('H.npy', data)
 
-
-28306800

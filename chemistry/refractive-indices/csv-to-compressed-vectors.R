@@ -1,0 +1,1 @@
+theta=0.011; x=read.csv('dummy.csv', sep='\t'); dn=diff(x$n);  mask=c(T,abs(diff(dn))>theta); plot(x$l[mask],x$n[mask]); lines(x$l[mask],x$n[mask]); lines(x$l,x$n,col=2); sum(mask); paste(format(x$l[mask], digits=2), collapse=', '); paste(format(x$n[mask], digits=2), collapse=', ')
