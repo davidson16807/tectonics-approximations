@@ -37,8 +37,8 @@ Evaluation = function(observations, property, predict){
 				z=c(output, predict(input, parameters1), predict(input, parameters2)), 
 				color=c(
 					rep('observed', times=length(output)), 
-					rep('predicted1', times=length(output)), 
-					rep('predicted2', times=length(output))
+					rep('parameters1', times=length(output)), 
+					rep('parameters2', times=length(output))
 				)
 			) %>% layout(scene = list(xaxis=list(title='T'), yaxis=list(title='p')))
 		}
@@ -76,7 +76,8 @@ Iteration = function(observations, evaluation, costs, model, cost_id){
 			print(state$par)
 			print(paste(model$code(state$par), ' \r\n// ', 
 				unique(observations$compound), ', ',
-				'mean error: ', costs$pe(state$par), 
+				'mean error: ', costs$mpe(state$par), 
+				'max error: ', costs$mxpe(state$par), 
 				'range: ', min(observations$T, na.rm=TRUE), '-', max(observations$T, na.rm=TRUE), 'K, ', 
 				           min(observations$p, na.rm=TRUE), '-', max(observations$p, na.rm=TRUE), 'MPa, ', 
                 'stp estimate: ', sprintf('%.3f', model$predict(list(p=0.1, T=273.15), state$par)), 
@@ -108,6 +109,56 @@ Fitting = function(property, model, cost_id){
 }
 
 
+gas_heat_capacity_hydrogen = list(
+	initialize=function(){ c(1e-3,1,  1e-6,1.7,  8,120,100,  6) },
+	predict=function(data, parameters){
+		x1 = parameters[1]
+		x2 = parameters[2]
+		x3 = parameters[3]
+		x4 = parameters[4]
+		x5 = parameters[5]
+		x6 = parameters[6]
+		x7 = parameters[7]
+		x8 = parameters[8]
+		p = data$p
+		T = data$T
+		u = (T-x6)/x7
+		return( x1*p^x2 + x3*T^x4 + x5*u/sqrt(1+u^2) + x8 )
+	},
+	code = function(parameters){
+		paste('get_sigmoid_exponent_pressure_temperature_function\r\n',
+			      '(si::kelvin, si::megapascal, si::joule/(si::gram * si::kelvin),\r\n', 
+			      paste(sprintf('%.5f', parameters), collapse=', '), '),', sep='')
+	}
+)
+
+gas_heat_capacity_dipper102 = list(
+	initialize=function(){ c(2.7, 0.35, -1.8, 2.6,    1e-3, 0.75) },
+	predict=function(data, parameters){
+		x1 = parameters[1]
+		x2 = parameters[2]
+		x3 = parameters[3]
+		x4 = parameters[4]
+		x5 = parameters[5]
+		x6 = parameters[6]
+		p = data$p
+		T = data$T
+		return( x1*T^x2 / (1+x3/T + x4/T^2)  + x5*T^x6 )
+	},
+	code = function(parameters){
+		paste('get_dippr_temperature_pressure_function_102\r\n',
+			'(si::kelvin, si::megapascal, si::joule/(si::gram * si::kelvin),\r\n', 
+			paste(sprintf('%.5f', parameters), collapse=', '), '),', sep='')
+	}
+)
+
+hydrogen = list(
+	predict=gas_heat_capacity_dipper102$predict,
+	code=gas_heat_capacity_dipper102$code,
+	initialize=function(){ c(0.1,1.02,-2.26,1.56,    -0.181, 0.640) }
+)
+gas_heat_capacities = Fitting('Cp', gas_heat_capacity_hydrogen, 'mpe')
+gas_heat_capacities$optimize(gas.Cp[gas.Cp$compound == 'hydrogen'           ,])
 
 
 
@@ -182,8 +233,9 @@ gas_heat_capacity_sigmoid2 = list(
 	}
 )
 
+
 gas_heat_capacity_hydrogen = list(
-	initialize=function(){ c(1e-3,1,  1000,1.7,  8,120,100,  6) },
+	initialize=function(){ c(1e-3,1,  0.001,1.7,  8,120,100,  6) },
 	predict=function(data, parameters){
 		x1 = parameters[1]
 		x2 = parameters[2]
@@ -205,8 +257,7 @@ gas_heat_capacity_hydrogen = list(
 )
 
 
-gas_heat_capacities = Fitting('Cp', gas_heat_capacity_hydrogen, 'mpe')
-gas_heat_capacities$optimize(gas.Cp[gas.Cp$compound == 'hydrogen'           ,])
+gas_heat_capacities$plot(gas.Cp[gas.Cp$compound == 'hydrogen',])
 
 gas_heat_capacities = Fitting('Cp', gas_heat_capacity_model1, 'mpe')
 gas_heat_capacities$optimize(gas.Cp[gas.Cp$compound == 'water'              ,]) 
@@ -228,7 +279,7 @@ gas_heat_capacities$optimize(gas.Cp[gas.Cp$compound == 'methane'            ,])
 gas_heat_capacities$optimize(data[data$compound == 'argon'              ,]) # try constant
 gas_heat_capacities$optimize(data[data$compound == 'helium'             ,]) # try constant
 
-gas_heat_capacities$plot(gas.Cp)
+gas_heat_capacities$plot(gas.Cp[gas.Cp$compound == 'helium',])
 
 
 

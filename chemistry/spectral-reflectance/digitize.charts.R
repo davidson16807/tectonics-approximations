@@ -39,8 +39,6 @@ nh3.ice = digitize::digitize('cryominerals/nh3-02')
 ethane.ice = digitize::digitize('cryominerals/ethane-01')
 ethane.liquid = digitize::digitize('cryominerals/ethane-01')
 
-benzene = digitize::digitize('cryominerals/benzene-toluene')
-
 
 
 h2o.ice.alpha = digitize::digitize('cryominerals/nh3-01.png')
@@ -78,6 +76,9 @@ co.ice.alpha = read.csv('co.ice.alpha.csv')
 
 
 
+benzene = digitize::digitize('cryominerals/hydrocarbons.png')
+
+
 print.vectors = function(x, y) {
 	print('                get_absorption_coefficient_function_from_reflectance_at_wavelengths')
     print('                    (si::nanometer, 100.0 * si::micrometer,')
@@ -109,6 +110,9 @@ wavelengths = function(compound, diameter, x, y) {
 	print(paste('                    std::vector<double>{', paste(x, collapse=', '), '},'))
 	print(paste('                    std::vector<double>{', paste(y, collapse=', '), '}),'))
 }
+
+
+
 
 # halite.reflectance = digitize::digitize('usgs/splib07a_Halite_HS433.1B_ASDFRa_AREF.gif.png')  
 # halite.reflectance = digitize::digitize('usgs/splib07a_Halite_HS433.3B_NIC4aau_RREF.gif.png')

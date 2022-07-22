@@ -56,8 +56,8 @@
 p=rep(seq(0,5e6,length=50), times=50)
 t=rep(seq(0,400,length=50), each=50)
 
-# Substance           T0      P0(kPa)    a(bars)  c        L(J/kg)   M(kg/mol) m = -R/L  b       Tc     Pc(kPa)   
-# Hydrogen            13.84   7.04       274.22   1.74407  455000    0.002016  -0.009064 0.1564  33.20  1300    
+# Substance                                        T0      P0(kPa)    a(bars)  c        L(J/kg)   M(kg/mol) m = -R/L  b       Tc     Pc(kPa)   
+# Hydrogen                                         13.84   7.04       274.22   1.74407  455000    0.002016  -0.009064 0.1564  33.20  1300    
 #                                                  p     t      m           b        a         c        p0         t0        pc          tc  
 phase=sapply(seq(p), function(i){ get_basic_phase( p[i], t[i], -0.009064  , 0.1564 , 274.22  , 1.7441 , 7.04e3   , 13.84   , 1300e3    , 33.20  , TRUE , TRUE ) }) #Helium                                           
 plot(t,p,col=phase+1, pch=15)
